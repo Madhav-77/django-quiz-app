@@ -4,7 +4,7 @@ from .models import Quiz, Question
 class QuestionSerializer(serializers.ModelSerializer):
     text = serializers.CharField(max_length=500)
     options = serializers.ListField(
-        child=serializers.CharField(max_length=255),
+        child=serializers.CharField(),
         min_length=4,
         max_length=4,
         help_text="Each question must have 4 options."
@@ -35,3 +35,12 @@ class QuizSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quiz
         fields = ['title', 'questions']
+        
+class SubmitAnswerSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    selected_option = serializers.IntegerField(min_value=1, max_value=4)
+
+class AnswerFeedbackSerializer(serializers.Serializer):
+    is_correct = serializers.BooleanField()
+    correct_option = serializers.IntegerField(min_value=1, max_value=4)
+    message = serializers.CharField()

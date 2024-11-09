@@ -2,8 +2,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
-from .models import Quiz, Question
-from .serializers import QuizSerializer
+from .models import Answer, Quiz, Question
+from .serializers import AnswerFeedbackSerializer, QuizSerializer, SubmitAnswerSerializer
 
 class QuizCreateView(APIView):
     def post(self, request):
@@ -52,3 +52,38 @@ class QuizDetailView(APIView):
             return Response(quiz_serializer.data, status=status.HTTP_200_OK)
         except Quiz.DoesNotExist:
             raise Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+class SubmitAnswerView(APIView):
+    def post(self, request):
+        serializer = SubmitAnswerSerializer(data=request.data)
+        if serializer.is_valid():
+            question_id = serializer.validated_data['question_id']
+            selected_option = serializer.validated_data['selected_option']
+
+            try:
+                question = Question.objects.get(id=question_id)
+            except Question.DoesNotExist:
+                raise Response({"error": "Question not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            correct_option = question.correct_option
+            is_correct = selected_option == correct_option
+            correct_answer_index = correct_option - 1
+            message = "Correct answer!" if is_correct else f"Incorrect. The correct answer is {correct_option}: {question.options[correct_answer_index]}."
+
+            # Create or update the answer entry
+            Answer.objects.create(
+                question=question,
+                selected_option=selected_option,
+                is_correct=is_correct
+            )
+
+            # Prepare feedback response
+            feedback_serializer = AnswerFeedbackSerializer(data={
+                'is_correct': is_correct,
+                'correct_option': correct_option,
+                'message': message
+            })
+            if feedback_serializer.is_valid():
+                return Response(feedback_serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

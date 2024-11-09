@@ -18,6 +18,7 @@ class Question(models.Model):
     
 class Answer(models.Model):
     question = models.ForeignKey(Question, related_name="answers", on_delete=models.CASCADE)
+    user = models.ForeignKey(User, related_name='answer_user', on_delete=models.CASCADE)
     selected_option = models.PositiveIntegerField()
     is_correct = models.BooleanField()
     
