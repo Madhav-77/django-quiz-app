@@ -12,8 +12,17 @@ class QuestionSerializer(serializers.ModelSerializer):
     correct_option = serializers.IntegerField(
         min_value=1,
         max_value=4,
-        help_text="Provide the index between 1-4 for the correct option."
+        help_text="Provide the index between 1-4 for the correct option.",
+        read_only=True
     )
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        
+        # remove correct_option field for GET cals
+        representation.pop('correct_option', None)
+        
+        return representation
 
     class Meta:
         model = Question

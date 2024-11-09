@@ -38,4 +38,17 @@ class QuizCreateView(APIView):
                     status = status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         else:
-            raise Response({"error": "Invalid data or incomplete fields."}, status=status.HTTP_400_BAD_REQUEST)
+            raise Response(
+                {"error": "Invalid data or incomplete fields."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+class QuizDetailView(APIView):
+    def get(self, request, quiz_id):
+        try:
+            quiz = Quiz.objects.get(id=quiz_id)
+            quiz_serializer = QuizSerializer(quiz)
+
+            return Response(quiz_serializer.data, status=status.HTTP_200_OK)
+        except Quiz.DoesNotExist:
+            raise Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
