@@ -64,6 +64,7 @@ class SubmitAnswerView(APIView):
         if serializer.is_valid():
             question_id = serializer.validated_data['question_id']
             selected_option = serializer.validated_data['selected_option']
+            user = request.user
 
             try:
                 question = Question.objects.get(id=question_id)
@@ -78,6 +79,7 @@ class SubmitAnswerView(APIView):
             # Create or update the answer entry
             Answer.objects.create(
                 question=question,
+                user=user,
                 selected_option=selected_option,
                 is_correct=is_correct
             )
