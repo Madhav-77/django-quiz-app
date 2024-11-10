@@ -70,6 +70,14 @@ class SubmitAnswerView(APIView):
             question_id = serializer.validated_data['question_id']
             selected_option = serializer.validated_data['selected_option']
             user = request.user
+            
+            # check if an answer already exists for this user and question
+            existing_answer = Answer.objects.filter(question_id=question_id, user=user).first()
+            if existing_answer:
+                return Response(
+                    {"error": "Answer already exists for this question. Please delete it before resubmitting."},
+                    status=status.HTTP_409_CONFLICT
+                )
 
             try:
                 question = Question.objects.get(id=question_id)
@@ -161,3 +169,23 @@ class GetResultsView(APIView):
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
+   
+# Deletes the result for a specific quiz and user 
+# Deletes the answers for a specific quiz and user 
+class DeleteResultAndAnswerView(APIView):
+    def delete(self, request, quiz_id, user_id):
+        try:
+            result = Result.objects.get(quiz_id=quiz_id, user_id=user_id)
+            result.delete()
+            answer = Answer.objects.get(quiz_id=quiz_id, user_id=user_id)
+            answer.delete()            
+            return Response({"message": "Result and Answers deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        
+        except Answer.DoesNotExist:
+            return Response({"error": "Answers not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+        except Result.DoesNotExist:
+            return Response({"error": "Result not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            return Response({"error": "An error occurred while deleting the result.", "message": e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
