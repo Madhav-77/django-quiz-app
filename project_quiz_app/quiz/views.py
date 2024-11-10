@@ -1,13 +1,14 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from .models import Answer, Quiz, Question, Result
-from .serializers import AnswerFeedbackSerializer, QuizSerializer, SubmitAnswerSerializer
+from .serializers import AnswerFeedbackSerializer, AnswerSummarySerializer, QuizSerializer, SubmitAnswerSerializer
 
+# view for creating quiz
 class QuizCreateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated] # restricting access without authentication
+    
     def post(self, request):
         serializer = QuizSerializer(data = request.data)
         if serializer.is_valid():
@@ -16,7 +17,8 @@ class QuizCreateView(APIView):
                 quiz = Quiz.objects.create(title = quiz_data['title'])
 
                 # loop through questions list
-                # and push to current quiz
+                # and store to question table with 
+                # current quiz object 
                 question_objects = []
                 for question_data in quiz_data['questions']:
                     question = Question(
@@ -44,9 +46,10 @@ class QuizCreateView(APIView):
                 {"error": "Invalid data or incomplete fields."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
+# view for fetching quiz
 class QuizDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated] # restricting access without authentication
     
     def get(self, request, quiz_id):
         try:
@@ -56,9 +59,11 @@ class QuizDetailView(APIView):
             return Response(quiz_serializer.data, status=status.HTTP_200_OK)
         except Quiz.DoesNotExist:
             raise Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
-        
+
+# view for submitting single answer
 class SubmitAnswerView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated] # restricting access without authentication
+    
     def post(self, request):
         serializer = SubmitAnswerSerializer(data=request.data)
         if serializer.is_valid():
@@ -76,7 +81,7 @@ class SubmitAnswerView(APIView):
             correct_answer_index = correct_option - 1
             message = "Correct answer!" if is_correct else f"Incorrect. The correct answer is {correct_option}: {question.options[correct_answer_index]}."
 
-            # Attempt to create the answer entry
+            # create the answer object in db
             try:
                 answer = Answer.objects.create(
                     question=question,
@@ -89,30 +94,32 @@ class SubmitAnswerView(APIView):
             
             quiz = question.quiz
             
+            # creating entry in result table here
+            # if entry already present
+            # updating the score based on answer is right or wrong
             try:
                 result, created = Result.objects.get_or_create(user=user, quiz=quiz, defaults={'score': 0})
+                if not created:
+                    # update score if answer is correct
+                    if is_correct:
+                        result.score += 1
+                else:
+                    # if new result was created, 
+                    # set score to 1 or 0
+                    result.score = 1 if is_correct else 0
             except Exception as e:
                 return Response({"error": "Failed to retrieve or create result."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            if not created:
-                # update score if answer is correct
-                if is_correct:
-                    result.score += 1
-            else:
-                # if new result was created, 
-                # set score to 1 or 0
-                result.score = 1 if is_correct else 0
-
-            # Add the answer to the Result model's answers field
+            # add answer to the result answers list
             result.answers.add(answer)
             
             try:
-                # Save the result after updating the score
+                # save the result after updating the score and answer to list
                 result.save()
             except Exception as e:
                 return Response({"error": "Failed to save result."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            # Prepare feedback response
+            # feedback response
             feedback_serializer = AnswerFeedbackSerializer(data={
                 'is_correct': is_correct,
                 'correct_option': correct_option,
@@ -123,49 +130,34 @@ class SubmitAnswerView(APIView):
                 return Response(feedback_serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+# view for final results for specific user and quiz
 class GetResultsView(APIView):
-    permission_classes = [IsAuthenticated]
-    """
-    API view to retrieve the results for a specific quiz and user.
-    Returns the user's score and a summary of each answer (correct/incorrect).
-    """
+    permission_classes = [IsAuthenticated] # restricting access without authentication
 
     def get(self, request, quiz_id, user_id):
-        """
-        Retrieve the results of a user for a specific quiz.
-        """
+        # fetch requested quiz
         try:
-            # Fetch the quiz and result associated with the user
             quiz = Quiz.objects.get(id=quiz_id)
         except Quiz.DoesNotExist:
             return Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # fetch result associated with user and quiz
         try:
             result = Result.objects.get(quiz=quiz, user_id=user_id)
         except Result.DoesNotExist:
             return Response({"error": "Results not found for the user in this quiz."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Prepare the response data
-        answers_summary = []
-        total_score = result.score
+        # response data
         answers = result.answers.all()
-
-        for answer in answers:
-            answer_summary = {
-                "question_id": answer.question.id,
-                "selected_option": answer.selected_option,
-                "correct_option": answer.question.correct_option,
-                "is_correct": answer.is_correct
-            }
-            answers_summary.append(answer_summary)
-
-        # Prepare the final response structure
+        answers_list = AnswerSummarySerializer(answers, many=True).data
+        total_score = result.score
+        
         response_data = {
             "quiz_id": quiz.id,
             "user_id": user_id,
             "total_score": total_score,
-            "answers_summary": answers_summary
+            "answers": answers_list
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
