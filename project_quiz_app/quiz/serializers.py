@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Quiz, Question
+from .models import Answer, Quiz, Question, Result
 
 class QuestionSerializer(serializers.ModelSerializer):
     text = serializers.CharField(max_length=500)
@@ -35,6 +35,24 @@ class QuizSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quiz
         fields = ['title', 'questions']
+
+class AnswerSummarySerializer(serializers.ModelSerializer):
+    question = serializers.CharField(source='question.text')
+    selected_option = serializers.IntegerField()
+    is_correct = serializers.BooleanField()
+
+    class Meta:
+        model = Answer
+        fields = ['question', 'selected_option', 'is_correct']
+        
+class ResultSerializer(serializers.ModelSerializer):
+    answers = AnswerSummarySerializer(many=True)  # Nested serializer to show answers
+    quiz_title = serializers.CharField(source='quiz.title')
+    user_username = serializers.CharField(source='user.username')
+
+    class Meta:
+        model = Result
+        fields = ['quiz_title', 'user_username', 'score', 'answers']
         
 class SubmitAnswerSerializer(serializers.Serializer):
     question_id = serializers.IntegerField()

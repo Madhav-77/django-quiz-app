@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
-from .models import Answer, Quiz, Question
+from .models import Answer, Quiz, Question, Result
 from .serializers import AnswerFeedbackSerializer, QuizSerializer, SubmitAnswerSerializer
 
 class QuizCreateView(APIView):
@@ -76,13 +76,41 @@ class SubmitAnswerView(APIView):
             correct_answer_index = correct_option - 1
             message = "Correct answer!" if is_correct else f"Incorrect. The correct answer is {correct_option}: {question.options[correct_answer_index]}."
 
-            # Create or update the answer entry
-            Answer.objects.create(
-                question=question,
-                user=user,
-                selected_option=selected_option,
-                is_correct=is_correct
-            )
+            # Attempt to create the answer entry
+            try:
+                answer = Answer.objects.create(
+                    question=question,
+                    user=user,
+                    selected_option=selected_option,
+                    is_correct=is_correct
+                )
+            except Exception as e:
+                return Response({"error": "Failed to create answer entry."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            quiz = question.quiz
+            
+            try:
+                result, created = Result.objects.get_or_create(user=user, quiz=quiz, defaults={'score': 0})
+            except Exception as e:
+                return Response({"error": "Failed to retrieve or create result."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            if not created:
+                # update score if answer is correct
+                if is_correct:
+                    result.score += 1
+            else:
+                # if new result was created, 
+                # set score to 1 or 0
+                result.score = 1 if is_correct else 0
+
+            # Add the answer to the Result model's answers field
+            result.answers.add(answer)
+            
+            try:
+                # Save the result after updating the score
+                result.save()
+            except Exception as e:
+                return Response({"error": "Failed to save result."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             # Prepare feedback response
             feedback_serializer = AnswerFeedbackSerializer(data={
@@ -90,7 +118,54 @@ class SubmitAnswerView(APIView):
                 'correct_option': correct_option,
                 'message': message
             })
+            
             if feedback_serializer.is_valid():
                 return Response(feedback_serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class GetResultsView(APIView):
+    permission_classes = [IsAuthenticated]
+    """
+    API view to retrieve the results for a specific quiz and user.
+    Returns the user's score and a summary of each answer (correct/incorrect).
+    """
+
+    def get(self, request, quiz_id, user_id):
+        """
+        Retrieve the results of a user for a specific quiz.
+        """
+        try:
+            # Fetch the quiz and result associated with the user
+            quiz = Quiz.objects.get(id=quiz_id)
+        except Quiz.DoesNotExist:
+            return Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            result = Result.objects.get(quiz=quiz, user_id=user_id)
+        except Result.DoesNotExist:
+            return Response({"error": "Results not found for the user in this quiz."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Prepare the response data
+        answers_summary = []
+        total_score = result.score
+        answers = result.answers.all()
+
+        for answer in answers:
+            answer_summary = {
+                "question_id": answer.question.id,
+                "selected_option": answer.selected_option,
+                "correct_option": answer.question.correct_option,
+                "is_correct": answer.is_correct
+            }
+            answers_summary.append(answer_summary)
+
+        # Prepare the final response structure
+        response_data = {
+            "quiz_id": quiz.id,
+            "user_id": user_id,
+            "total_score": total_score,
+            "answers_summary": answers_summary
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
