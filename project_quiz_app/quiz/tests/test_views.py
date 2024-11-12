@@ -10,7 +10,7 @@ class QuizCreateViewTest(APITestCase):
         self.client = APIClient()
         self.user = User.objects.create_user(username='testuser', password='testpassword')
         self.client.force_authenticate(user=self.user)
-        self.url = '/quiz/api/create/'
+        self.url = '/quiz/api/quizzes/create/'
 
         self.valid_payload = {
             "title": "Sample Quiz",
@@ -64,7 +64,7 @@ class QuizDetailViewTest(APITestCase):
         self.token = str(refresh.access_token)
         self.client.login(username="testuser", password="testpass")
         self.quiz = Quiz.objects.create(title="Sample Quiz")
-        self.url = f'/quiz/api/display/{self.quiz.id}/'
+        self.url = f'/quiz/api/quizzes/{self.quiz.id}/'
 
     def test_quiz_detail_success(self):
         self.quiz = Quiz.objects.create(title="Sample Quiz")
@@ -75,7 +75,7 @@ class QuizDetailViewTest(APITestCase):
         self.assertEqual(response.data['title'], self.quiz.title)
 
     def test_quiz_detail_not_found(self):
-        self.url = f'/quiz/api/display/232/'
+        self.url = f'/quiz/api/quizzes/232/'
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -87,7 +87,7 @@ class SubmitAnswerViewTest(APITestCase):
         self.user = User.objects.create_user(username='testuser', password='testpassword')
         self.client = APIClient()
         self.client.login(username='testuser', password='testpassword')
-        self.url = '/quiz/api/submit_answer/'
+        self.url = '/quiz/api/quizzes/submit/'
         refresh = RefreshToken.for_user(self.user)
         self.token = str(refresh.access_token)
 
@@ -172,7 +172,7 @@ class GetResultsViewTest(APITestCase):
         self.result = Result.objects.create(quiz=self.quiz, user=self.user, score=3)
         self.result.answers.set([self.answer1, self.answer2])
 
-        self.url = f'/quiz/api/results/{self.quiz.id}/{self.user.id}/'
+        self.url = f'/quiz/api/quizzes/{self.quiz.id}/users/{self.user.id}/results/'
 
         refresh = RefreshToken.for_user(self.user)
         self.token = str(refresh.access_token)
@@ -198,14 +198,15 @@ class GetResultsViewTest(APITestCase):
 
     def test_get_results_no_result(self):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
-        response = self.client.get(f'/quiz/api/results/{self.quiz.id}/123/')
+        response = self.client.get(f'/quiz/api/quizzes/{self.quiz.id}/users/123/results/')
+        
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data['error'], "Results not found for the user in this quiz.")
         
     def test_get_results_invalid_quiz(self):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
-        response = self.client.get('/quiz/api/results/9999/11212/')
+        response = self.client.get('/quiz/api/quizzes/9999999999/users/123123123/results/')
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data['error'], "Quiz not found.")
@@ -230,7 +231,7 @@ class DeleteResultAndAnswerViewTest(APITestCase):
         self.result = Result.objects.create(quiz=self.quiz, user=self.user, score=4)
         self.result.answers.set([self.answer])
 
-        self.url = f'/quiz/api/delete/{self.quiz.id}/{self.user.id}/'
+        self.url = f'/quiz/api/quizzes/{self.quiz.id}/users/{self.user.id}/delete/'
 
         refresh = RefreshToken.for_user(self.user)
         self.token = str(refresh.access_token)
@@ -248,7 +249,7 @@ class DeleteResultAndAnswerViewTest(APITestCase):
         self.assertEqual(response.data['error'], "Result not found.")
 
     def test_delete_invalid_quiz_or_user(self):
-        invalid_url = f'/quiz/api/delete/9999/{self.user.id}/'
+        invalid_url = f'/quiz/api/quizzes/99999999/users/{self.user.id}/delete/'
 
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
 
