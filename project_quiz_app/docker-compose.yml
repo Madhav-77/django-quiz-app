@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  django:
+    build:
+      context: .  # path to Django Dockerfile
+      dockerfile: Dockerfile  # Django Dockerfile
+    container_name: django_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=1
+    depends_on:
+      - db
+
+  angular:
+    build:
+      context: . # ath to Angular Dockerfile
+      dockerfile: Dockerfile.angular # Django Dockerfile
+    container_name: angular_app
+    ports:
+      - "4200:4200"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+  db:
+    image: sqlite
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3

@@ -172,7 +172,7 @@ class GetResultsViewTest(APITestCase):
         self.result = Result.objects.create(quiz=self.quiz, user=self.user, score=3)
         self.result.answers.set([self.answer1, self.answer2])
 
-        self.url = f'http://127.0.0.1:8000/quiz/api/results/{self.quiz.id}/{self.user.id}/'
+        self.url = f'/quiz/api/results/{self.quiz.id}/{self.user.id}/'
 
         refresh = RefreshToken.for_user(self.user)
         self.token = str(refresh.access_token)
