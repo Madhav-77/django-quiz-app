@@ -13,8 +13,7 @@ class QuestionSerializer(serializers.ModelSerializer):
     correct_option = serializers.IntegerField(
         min_value=1,
         max_value=4,
-        help_text="Provide the index between 1-4 for the correct option.",
-        read_only=True
+        help_text="Provide the index between 1-4 for the correct option."
     )
     
     # to reuse the same serializer for fetching quiz 
@@ -27,7 +26,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ['text', 'options', 'correct_option']
+        fields = ['id', 'text', 'options', 'correct_option']
 
 # validates and serializes fields 
 # for create quiz API and Get quiz API
@@ -38,6 +37,19 @@ class QuizSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quiz
         fields = ['title', 'questions']
+        
+    def create(self, validated_data):
+        # Extract the questions data from the validated data
+        questions_data = validated_data.pop('questions')
+        
+        # Create the quiz object first
+        quiz = Quiz.objects.create(**validated_data)
+        
+        # Now create the questions and associate them with the quiz
+        for question_data in questions_data:
+            Question.objects.create(quiz=quiz, **question_data)
+        
+        return quiz
 
 # validates the answers list for final result view
 class AnswerSummarySerializer(serializers.ModelSerializer):
@@ -58,3 +70,8 @@ class AnswerFeedbackSerializer(serializers.Serializer):
     is_correct = serializers.BooleanField()
     correct_option = serializers.IntegerField(min_value=1, max_value=4)
     message = serializers.CharField()
+    
+class QuizListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Quiz
+        fields = ['id', 'title']

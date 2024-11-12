@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from .models import Answer, Quiz, Question, Result
-from .serializers import AnswerFeedbackSerializer, AnswerSummarySerializer, QuizSerializer, SubmitAnswerSerializer
+from .serializers import AnswerFeedbackSerializer, AnswerSummarySerializer, QuizListSerializer, QuizSerializer, SubmitAnswerSerializer
 
 # view for creating quiz
 class QuizCreateView(APIView):
@@ -28,7 +28,6 @@ class QuizCreateView(APIView):
                         correct_option = question_data['correct_option']
                     )
                     question_objects.append(question)
-                
                 # bulk create for inserting all questions at once
                 Question.objects.bulk_create(question_objects)
 
@@ -42,7 +41,7 @@ class QuizCreateView(APIView):
                     status = status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         else:
-            raise Response(
+            return Response(
                 {"error": "Invalid data or incomplete fields."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -58,7 +57,7 @@ class QuizDetailView(APIView):
 
             return Response(quiz_serializer.data, status=status.HTTP_200_OK)
         except Quiz.DoesNotExist:
-            raise Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
 
 # view for submitting single answer
 class SubmitAnswerView(APIView):
@@ -82,7 +81,7 @@ class SubmitAnswerView(APIView):
             try:
                 question = Question.objects.get(id=question_id)
             except Question.DoesNotExist:
-                raise Response({"error": "Question not found."}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": "Question not found."}, status=status.HTTP_404_NOT_FOUND)
 
             correct_option = question.correct_option
             is_correct = selected_option == correct_option
@@ -189,3 +188,16 @@ class DeleteResultAndAnswerView(APIView):
         
         except Exception as e:
             return Response({"error": "An error occurred while deleting the result.", "message": e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+# view for fetching all quiz list
+class QuizListView(APIView):
+    permission_classes = [IsAuthenticated] # restricting access without authentication
+    
+    def get(self, request):
+        try:
+            user = request.user
+            quizzes = Quiz.objects.exclude(id__in=Result.objects.filter(user=user).values('quiz_id'))
+            serializer = QuizListSerializer(quizzes, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Quiz.DoesNotExist:
+            raise Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)

@@ -18,7 +18,16 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         )
         user.password = make_password(validated_data['password']) # password hashing before saving
         user.save()
-        return user
+        
+        user_from_db = User.objects.filter(username=user).first()
+        
+        refresh = RefreshToken.for_user(user)
+        return {
+                "user_id": str(user_from_db.id),
+                "username": str(user_from_db.username),
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+        }
 
 # validates user login
 class UserLoginSerializer(serializers.Serializer):
@@ -35,6 +44,8 @@ class UserLoginSerializer(serializers.Serializer):
             # generate token if credentials are valid
             refresh = RefreshToken.for_user(user)
             return {
+                "user_id": str(user.id),
+                "username": str(user.username),
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
             }
